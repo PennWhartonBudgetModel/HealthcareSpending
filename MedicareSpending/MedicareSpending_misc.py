@@ -89,3 +89,24 @@ df = df[df.Year <= 2017]
 df['PopRatio'] = df.Pop_MEPS/df.Pop_CPS
 df.sort_values(by = ['Year', 'AgeGrp'], inplace = True)
 df.to_excel(r'C:\Users\yanhe8\Dropbox (Penn)\MEPS_Healthcare\Output\MedicareExpansionCost\PopElderly.xlsx')
+
+## compare the Medicaid per person drug spending and the Medicaid per person Drug spending for each year
+xls = pd.ExcelFile(r'C:\Users\yanhe8\Dropbox (Penn)\MEPS_Healthcare\Output\PerCapitaMedExpenditure.xlsx')
+mcd = pd.read_excel(xls, 'Only people with Medicaid')
+mcr = pd.read_excel(xls, 'Only people with Medicare')
+mcr = mcr[['Year', 'Age', 'mcareD', 'MedicarePop']]
+mcd = mcd[['Year', 'Age', 'MedicaidDrug', 'MedicaidPop']]
+df = mcr.merge(mcd, on = ['Year', 'Age'], how = 'inner')
+df = df[df.Age >= 65]
+df['MedicaidDrugTot'] = df.MedicaidDrug * df.MedicaidPop
+df['MedicareDrugTot'] = df.mcareD * df.MedicarePop
+for var in ['MedicaidDrugTot', 'MedicareDrugTot', 'MedicaidPop', 'MedicarePop']:
+	df[var + 'Sum'] = df.groupby(['Year'])[var].transform('sum')
+df_year = df[['Year', 'MedicaidDrugTotSum', 'MedicareDrugTotSum', 'MedicaidPopSum', 'MedicarePopSum']].drop_duplicates()
+df_year['MedicaidDrugPerCapita'] = df_year.MedicaidDrugTotSum/df.TotPopSum
+df_year['MedicareDrugPerCapita'] = df_year.MedicareDrugTotSum/df.TotPopSum
+df_year.to_excel(r'C:\Users\yanhe8\Dropbox (Penn)\MEPS_Healthcare\Output\MedicaidMedicareComparison_old.xlsx')
+
+
+
+

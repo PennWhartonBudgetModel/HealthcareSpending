@@ -58,6 +58,7 @@ df <- subset(df,Weight!=0)
 df$Age <- as.integer(df$Age)
 # reformat the "Medicare_yes" so that 1 is yes and 0 is no
 df$Medicare_Yes[df$Medicare_Yes==2]<-0
+df$Medicaid_Yes[df$Medicaid_Yes==2]<-0
 
 #adjust expenditures to account for inflation using CPI (optional)
 # price indexes are available at https://meps.ahrq.gov/about_meps/Price_Index.shtml
@@ -85,11 +86,17 @@ df$MedicarePartA[df$Medicare_Yes == 0] = 0
 df$MedicarePartB[df$Medicare_Yes == 0] = 0
 df$MedicarePartC[df$Medicare_Yes == 0] = 0
 df$MedicarePartD[df$Medicare_Yes == 0] = 0
+
+# for people who are not covered by Medicaid, their Medicaid on drug should be 0
 df$Prescription_MCD[df$Medicaid_Yes == 0] = 0
 
-# generate variables used for calculating the % enrollment for each age
+# generate variables used for calculating the % Medicare enrollment for each age
 df['WgtMedicareEnrollee'] = df$Weight
 df$WgtMedicareEnrollee[df$Medicare_Yes==0] <- 0
+
+# generate variables used for calculating the % Medicaid enrollment for each age
+df['WgtMedicaidEnrollee'] = df$Weight
+df$WgtMedicaidEnrollee[df$Medicaid_Yes==0] <- 0
 
 # generate age group
 df$Age[(df$Age == -1) & (!is.na(df$AgeLastRound))] = 
@@ -143,12 +150,18 @@ uyen <- function(df, age_grp, tot_pop = TRUE) {
       summarize(TotPop = sum(Weight, na.rm = TRUE))    
   }
 
-   # total enrollees
+   # total Medicare enrollees
    output8 <- df %>%
      group_by(Year,!!age_grp) %>%
      summarize(MedicarePop = sum(WgtMedicareEnrollee, na.rm = TRUE))   
 
-   output9 <-  df %>%
+   # total Medicaid enrollees
+   output9 <- df %>%
+     group_by(Year,!!age_grp) %>%
+     summarize(MedicaidPop = sum(WgtMedicaidEnrollee, na.rm = TRUE))  
+   
+   # Medicaid Spending on Drug 
+   output10 <-  df %>%
      group_by(Year,!!age_grp) %>%
      summarize(MedicaidDrug = weighted.mean(Prescription_MCD, Weight, na.rm = TRUE))
    
@@ -164,27 +177,33 @@ uyen <- function(df, age_grp, tot_pop = TRUE) {
   }
   output <- left_join(output,output8)
   output <- left_join(output,output9)
+  output <- left_join(output,output10)
   
   return(output)
 }
 
 #subset df to get only people with Medicare coverage
-df_mcr <- subset(df,Medicare_Yes==1)
+df_mcr <- subset(df, Medicare_Yes==1)
+df_mcd <- subset(df, Medicaid_Yes ==1)
 df_old <- subset(df,Age>=60)
 df_old_mcr <- subset(df_old,Medicare_Yes==1)
+df_old_mcd <- subset(df_old,Medicaid_Yes==1)
 
 # output resultant dataframes--of data by age
 o1<-uyen(df, Age, TRUE)
 o2<-uyen(df_mcr, Age, FALSE)
+o3<-uyen(df_mcd, Age, FALSE)
 
 # create workbook
 wb <- createWorkbook()
 addWorksheet(wb, "All")
 addWorksheet(wb, "Only people with Medicare")
+addWorksheet(wb, "Only people with Medicaid")
 
 # put our dataframes into the worksheet
 writeData(wb, 1, o1)
 writeData(wb, 2, o2)
+writeData(wb, 3, o3)
 
 # save worksheet
 setwd(Result_Dir)
@@ -194,15 +213,18 @@ saveWorkbook(wb, "PerCapitaMedExpenditure.xlsx", overwrite = TRUE)
 # output result dataframes--of data by age group
 o1<-uyen(df_old, AgeGrp, TRUE)
 o2<-uyen(df_old_mcr, AgeGrp, FALSE)
+o3<-uyen(df_old_mcd, AgeGrp, FALSE)
 
 # create workbook
 wb <- createWorkbook()
 addWorksheet(wb, "All")
 addWorksheet(wb, "Only people with Medicare")
+addWorksheet(wb, "Only people with Medicaid")
 
 # put our dataframes into the worksheet
 writeData(wb, 1, o1)
 writeData(wb, 2, o2)
+writeData(wb, 3, o3)
 
 # save worksheet
 setwd(Result_Dir)
