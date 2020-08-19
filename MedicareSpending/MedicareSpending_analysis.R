@@ -37,12 +37,13 @@ load("MEPS_Healthcare_Spending_2007_2017.rda")
 #fetch the specific variables you want
 df <- Consolidated_df[,c('YEAR','AGE', 'AGELAST', 'PERWT','TOTEXP','TOTSLF','TOTMCR','MCREV', 
                          'OBVMCR', 'OPTMCR', 'ERTMCR', 'IPTMCR', 'DVTMCR', 'HHAMCR', 'HHNMCR', 
-                         'VISMCR', 'OTHMCR', 'RXMCR', 'RXEXP')]
+                         'VISMCR', 'OTHMCR', 'RXMCR', 'RXEXP', 'RXMCD', "MCDEV")]
 #rename them your way
 names(df) <- c("Year","Age", "AgeLastRound", "Weight","TotalExp","OOP","Medicare", "Medicare_Yes",
                'OfficeBasedVisits_MCR', 'Outpatient_MCR', 'Emergency_MCR', 'Inpatient_MCR', 
                'Dental_MCR', 'HomeHealthAgency_MCR', 'HomeHealthNonAgency_MCR', 'Vision_MCR', 
-               'OtherMedSupply_MCR', 'Prescription_MCR', 'TotalPrescriptionExp')
+               'OtherMedSupply_MCR', 'Prescription_MCR', 'TotalPrescriptionExp', 
+               'Prescription_MCD', "Medicaid_Yes")
 
 # create Variables indicating different parts of the Medicare spending
 df['MedicarePartA'] = df$Inpatient_MCR
@@ -74,6 +75,7 @@ for(i in seq(years)){
   df$MedicarePartB[df$Year==years[i]]<-df$MedicarePartB[df$Year==years[i]]*(GDP_Index2020/GDP_Index[i])
   df$MedicarePartC[df$Year==years[i]]<-df$MedicarePartC[df$Year==years[i]]*(GDP_Index2020/GDP_Index[i])
   df$MedicarePartD[df$Year==years[i]]<-df$MedicarePartD[df$Year==years[i]]*(GDP_Index2020/GDP_Index[i])
+  df$Prescription_MCD[df$Year==years[i]]<-df$Prescription_MCD[df$Year==years[i]]*(GDP_Index2020/GDP_Index[i])
 }
 
 ###Do some extra processing of the data
@@ -83,6 +85,7 @@ df$MedicarePartA[df$Medicare_Yes == 0] = 0
 df$MedicarePartB[df$Medicare_Yes == 0] = 0
 df$MedicarePartC[df$Medicare_Yes == 0] = 0
 df$MedicarePartD[df$Medicare_Yes == 0] = 0
+df$Prescription_MCD[df$Medicaid_Yes == 0] = 0
 
 # generate variables used for calculating the % enrollment for each age
 df['WgtMedicareEnrollee'] = df$Weight
@@ -144,7 +147,11 @@ uyen <- function(df, age_grp, tot_pop = TRUE) {
    output8 <- df %>%
      group_by(Year,!!age_grp) %>%
      summarize(MedicarePop = sum(WgtMedicareEnrollee, na.rm = TRUE))   
-    
+
+   output9 <-  df %>%
+     group_by(Year,!!age_grp) %>%
+     summarize(MedicaidDrug = weighted.mean(Prescription_MCD, Weight, na.rm = TRUE))
+   
   output <- left_join(output,output0)
   output <- left_join(output,output1)
   output <- left_join(output,output2)
@@ -156,6 +163,7 @@ uyen <- function(df, age_grp, tot_pop = TRUE) {
     output <- left_join(output,output7)
   }
   output <- left_join(output,output8)
+  output <- left_join(output,output9)
   
   return(output)
 }

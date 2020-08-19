@@ -87,12 +87,12 @@ vars_consol1    <- c("AGE53X","AGELAST", "BORNUSA", "USBORN42", "YRSINUS", "USLI
 vars_consol2    <- c("PERWT")
 
 # Consolidated variables whose name differs across years 
-vars_consol3    <- c("MCREV", "TOTEXP", "TOTMCR", "TOTSLF", "IPNGTD","MCRPB", "MCRPHO",
+vars_consol3    <- c("MCREV", "MCDEV", "TOTEXP", "TOTMCR", "TOTSLF", "IPNGTD","MCRPB", "MCRPHO",
                      "OBVMCR", "OBDMCR", "OBOMCR", "OBCMCR", "OBNMCR", "OBEMCR", "OBAMCR", "OBTMCR",
                      "OPTMCR", "OPFMCR", "OPDMCR", "OPVMCR", "OPSMCR", "OPOMCR", "OPPMCR",
                      "AMCMCR", "AMNMCR", "AMEMCR", "AMAMCR", "AMTMCR", "ERTMCR", "ERFMCR", "ERDMCR", 
                      "ZIFMCR", "ZIDMCR", "IPTMCR", "IPFMCR", "IPDMCR", "DVTMCR", "DVGMCR", "DVOMCR",
-                     "HHAMCR", "HHNMCR", "VISMCR", "OTHMCR", "RXMCR", "RXEXP")
+                     "HHAMCR", "HHNMCR", "VISMCR", "OTHMCR", "RXMCR", "RXEXP", "RXMCD")
 
 # Consolidated variables whose name differs across years and have a suffix
 vars_consol4    <-c("AGE", "MCRPD")
