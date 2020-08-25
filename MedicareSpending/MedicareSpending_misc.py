@@ -55,7 +55,7 @@ for var in ['total_Total', 'totalRx_Total', 'oop_Total', 'mcare_Total', 'mcareA_
 
 df_yearly = df[['Year','total_TotalAllAges', 'totalRx_TotalAllAges', 'oop_TotalAllAges', 'mcare_TotalAllAges', \
 	'mcareA_TotalAllAges', 'mcareB_TotalAllAges', 'mcareC_TotalAllAges', 'mcareD_TotalAllAges', 
-	'MedicarePopAllAges']].drop_duplicates()
+	'MedicarePopAllAges', 'TotPopAllAges']].drop_duplicates()
 
 df_yearly.to_excel(r'C:\Users\yanhe8\Dropbox (Penn)\MEPS_Healthcare\Output\MedicalExpenditure_Annual.xlsx')
 
@@ -71,6 +71,16 @@ df = df[['Year', 'AgeGrp', 'Pop']].drop_duplicates()
 df['PopLastYear'] = df.groupby('AgeGrp').Pop.shift(1)
 df['PopGrowth'] = df.Pop/df.PopLastYear
 df.to_excel(r'C:\Users\yanhe8\Dropbox (Penn)\MEPS_Healthcare\Output\MedicareExpansionCost\PopGrowth.xlsx')
+
+## get population growth for all ages
+df = pd.read_pickle(r'F:\.cache\MicrosimRunner_87c5e4831f42eab6_7968953225587690_2022_d0c6c6cbe6\micro.pkl.gz')
+df = df[['Year', 'Age']]
+df['Wgt'] = 1
+df['Pop'] = df.groupby('Year').Wgt.transform('sum')
+df = df[['Year', 'Pop']].drop_duplicates()
+df['PopLastYear'] = df.Pop.shift(1)
+df['PopGrowth'] = df.Pop/df.PopLastYear-1
+df.to_excel(r'E:\OneDrive - PennO365\MedicareExpansionCost\PopGrowth_allAge.xlsx')
 
 # Load the population from CPS, get the population between 60, 61, 62, 63, 64 and above 65
 # compare the population from CPS with the population from MEPS
@@ -103,8 +113,8 @@ df['MedicareDrugTot'] = df.mcareD * df.MedicarePop
 for var in ['MedicaidDrugTot', 'MedicareDrugTot', 'MedicaidPop', 'MedicarePop']:
 	df[var + 'Sum'] = df.groupby(['Year'])[var].transform('sum')
 df_year = df[['Year', 'MedicaidDrugTotSum', 'MedicareDrugTotSum', 'MedicaidPopSum', 'MedicarePopSum']].drop_duplicates()
-df_year['MedicaidDrugPerCapita'] = df_year.MedicaidDrugTotSum/df.TotPopSum
-df_year['MedicareDrugPerCapita'] = df_year.MedicareDrugTotSum/df.TotPopSum
+df_year['MedicaidDrugPerCapita'] = df_year.MedicaidDrugTotSum/df.MedicaidPopSum
+df_year['MedicareDrugPerCapita'] = df_year.MedicareDrugTotSum/df.MedicarePopSum
 df_year.to_excel(r'C:\Users\yanhe8\Dropbox (Penn)\MEPS_Healthcare\Output\MedicaidMedicareComparison_old.xlsx')
 
 
