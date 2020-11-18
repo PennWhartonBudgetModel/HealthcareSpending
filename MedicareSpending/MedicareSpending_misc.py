@@ -73,13 +73,15 @@ df['PopGrowth'] = df.Pop/df.PopLastYear
 df.to_excel(r'C:\Users\yanhe8\Dropbox (Penn)\MEPS_Healthcare\Output\MedicareExpansionCost\PopGrowth.xlsx')
 
 ## get population growth for all ages
-df = pd.read_pickle(r'F:\.cache\MicrosimRunner_87c5e4831f42eab6_7968953225587690_2022_d0c6c6cbe6\micro.pkl.gz')
+df_raw = pd.read_pickle(r'F:\.cache\MicrosimRunner_87c5e4831f42eab6_7968953225587690_2022_d0c6c6cbe6\micro.pkl.gz')
+df = df_raw[df_raw.Age>=65]
 df = df[['Year', 'Age']]
 df['Wgt'] = 1
 df['Pop'] = df.groupby('Year').Wgt.transform('sum')
 df = df[['Year', 'Pop']].drop_duplicates()
 df['PopLastYear'] = df.Pop.shift(1)
 df['PopGrowth'] = df.Pop/df.PopLastYear-1
+df.to_excel(r'E:\OneDrive - PennO365\MedicareExpansionCost\PopGrowth_above65.xlsx')
 df.to_excel(r'E:\OneDrive - PennO365\MedicareExpansionCost\PopGrowth_allAge.xlsx')
 
 # Load the population from CPS, get the population between 60, 61, 62, 63, 64 and above 65
