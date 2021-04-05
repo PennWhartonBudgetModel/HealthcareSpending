@@ -7,7 +7,8 @@ def main():
     # read in the CPS processed dataset from HPCC
     # my HPCC is U drive. Change if it is not the case for you!
     # cps = pd.read_csv(os.path.join('U:', 'DatasetProcessor', 'CPS', 'Interfaces', '2020-10-08-19-42-aherrick-971c25c', 'CPS-ASEC.csv.gz'))
-    cps = pd.read_pickle(r'E:\Repositories\DatasetProcessor\CPS\asec_afterhealth.pkl')
+    # cps = pd.read_pickle(r'E:\Repositories\DatasetProcessor\CPS\asec_afterhealth.pkl')
+    cps = pd.read_csv(r'F:\Interfaces\CPS-ASEC.csv.gz')
     
     # set up the excel file
     writer = pd.ExcelWriter('HealthcareInCPS_updated.xlsx')
@@ -110,4 +111,23 @@ def calculate_distribution(cps, year, by_agegrp = True):
 
 if __name__ == "__main__":
 	main()
+
+# # check the pattern of the uninsured population--make sure the majority of the unsured are not kids
+# cps = cps[cps.Year>1979]
+# dt = cps[cps.Age<65]
+# # all people above 1980 have valid data
+# dt['UninsuredWeight'] = dt.UninsuredLastYear * dt.Weight
+# totpop = pd.DataFrame(dt.groupby('Year').Weight.sum().reset_index())
+# totpop.rename(columns={'Weight': 'TotalPopulation'}, inplace = True)
+
+# uninsured = pd.DataFrame(dt.groupby('Year').UninsuredWeight.sum().reset_index())
+# uninsured.rename(columns={'UninsuredWeight': 'UninsuredPopulation'}, inplace = True)
+
+# df = totpop.merge(uninsured, on='Year', how='left')
+# df['UninsuredKidsPct'] = df['UninsuredPopulation']/df['TotalPopulation']
+# from matplotlib import pyplot as plt
+# plt.plot(df.Year, df.UninsuredKidsPct)
+ 
+
+
 
