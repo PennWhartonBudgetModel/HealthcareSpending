@@ -131,10 +131,12 @@ colnames(mcr.pd) <- c('year', pd.name)
 pd.demo <- read_excel('total_enrollment_partD_by_demo.xlsx', sheet = '2013')
 pd.demo['year'] <- 2013
 pd.demo[,1] <- demo.group
+
 for (yr in seq(2014,2019,1)) {
   temp <- read_excel("total_enrollment_partD_by_demo.xlsx", sheet = as.character(yr))
   temp['year'] <- yr
   temp[,1] <- demo.group
+  # append with other years
   pd.demo <- rbind(pd.demo, temp)
 }
 colnames(pd.demo) <- c('group', pd.name, 'year')
@@ -156,17 +158,92 @@ by.time <- total.enroll %>% full_join(mcr.age) %>%
   full_join(org.age) %>% full_join(ma.ab) %>% 
   full_join(ma.age) %>% full_join(mcr.pd)
   
-by.demo <- mcr.demo %>% full_join(org.demo) %>%
-  full_join(ma.demo) %>% full_join(pd.demo)
-
 by.state <- mcr.state %>% full_join(org.state) %>%
   full_join(ma.state) %>% 
   full_join(pd.state[,-2], by = c('state', 'year'))
 
+by.demo <- mcr.demo %>% full_join(org.demo) %>%
+  full_join(ma.demo) %>% full_join(pd.demo)
 
-### Analysis
-by.time['partD.share'] <- by.time$partD.enroll/by.time$total.enroll
-by.time['standalone.share'] <- by.time$stand.alone/by.time$partD.enroll
+## in the by.demo data, add the under25 age group row
+# create under25 age group
+by.demo <- by.demo[!by.demo$group %in% c('under18', '18to24'),]
+cols.num <- colnames(by.demo)
+cols.num <- cols.num[!cols.num %in% c("group", 'year')]
+by.demo[cols.num] <- sapply(by.demo[cols.num],as.numeric)
 
-by.time['retiree.subsidy.share'] <- by.time$retiree.rx.subsidy/by.time$total.enroll
-by.time['no.pd.retiree.subsidy.share'] <- by.time$no.pd.rx.retiree.subsidy/by.time$total.enroll
+by.demo.final <- by.demo[by.demo$year==2013,]
+agegrp <- c('25to34', '35to44', '45to54', '55to64', '65to74', '75to84',
+            '85to94', 'over95')
+by.demo.final <- by.demo.final %>%
+  bind_rows(by.demo.final[by.demo.final$group=='total',cols.num] -
+              colSums(by.demo.final[by.demo.final$group %in% agegrp,cols.num]))
+by.demo.final[is.na(by.demo.final$group), 'group'] = 'under25'
+# create group over 85
+by.demo.final <- by.demo.final %>%
+  bind_rows(colSums(
+    by.demo.final[by.demo.final$group %in% c('85to94', 'over95'),cols.num]))
+by.demo.final[is.na(by.demo.final$group), 'group'] = 'over85'
+by.demo.final[is.na(by.demo.final$year), 'year'] = 2013
+
+for (yr in seq(2014,2019,1)) {
+  temp <- by.demo[by.demo$year==yr,]
+  # create under25 group
+  temp <- temp %>%
+    bind_rows(temp[temp$group=='total',cols.num] -
+                colSums(temp[temp$group %in% agegrp,cols.num]))
+  temp[is.na(temp$group), 'group'] = 'under25'
+  # create over85 group
+  temp <- temp %>%
+    bind_rows(colSums(
+      temp[temp$group %in% c('85to94', 'over95'),cols.num]))
+  temp[is.na(temp$group), 'group'] = 'over85'
+  
+  temp[is.na(temp$year), 'year'] = yr
+  by.demo.final <- rbind(by.demo.final, temp)
+}
+by.demo <- by.demo.final
+
+# add under25 column in the by.time data
+for (suffix in c('', '.org', '.MA')) {
+  by.time[paste0('count.under25', suffix)] <- by.time[paste0('total.enroll',suffix)]-(
+    by.time[paste0('count.25to34',suffix)]+by.time[paste0('count.35to44',suffix)]+
+      by.time[paste0('count.45to54',suffix)]+by.time[paste0('count.55to64',suffix)]+
+      by.time[paste0('count.65to74',suffix)]+by.time[paste0('count.75to84',suffix)]+
+      by.time[paste0('count.85to94',suffix)]+by.time[paste0('count.over95',suffix)])
+  # update the share
+  by.time[paste0('share.under25', suffix)] <- 100-(
+    by.time[paste0('share.25to34',suffix)]+by.time[paste0('share.35to44',suffix)]+
+      by.time[paste0('share.45to54',suffix)]+by.time[paste0('share.55to64',suffix)]+
+      by.time[paste0('share.65to74',suffix)]+by.time[paste0('share.75to84',suffix)]+
+      by.time[paste0('share.85to94',suffix)]+by.time[paste0('share.over95',suffix)])
+  # by.time[paste0('share.under25', suffix)] <- by.time[paste0('count.under25', suffix)]/
+  #   by.time[paste0('total.enroll',suffix)]*100
+  
+  drop.cols <- c(paste0('count.under18',suffix), paste0('count.18to24',suffix), 
+                 paste0('share.under18',suffix), paste0('share.18to24',suffix))
+  by.time <- by.time[,!names(by.time) %in% drop.cols]
+  
+  # create over85 age group
+  by.time[paste0('count.over85', suffix)] <- by.time[paste0('count.85to94',suffix)]+
+    by.time[paste0('count.over95',suffix)]
+  by.time[paste0('share.over85', suffix)] <- by.time[paste0('share.85to94',suffix)]+
+    by.time[paste0('share.over95',suffix)]
+}
+
+setwd("E:/Repositories/HealthcareSpending/MedicareEnrollment")
+save(by.time, file = "by_time.rda")
+save(by.demo, file = "by_demo.rda")
+save(by.state, file = "by_state.rda")
+
+# read the population data
+pop <- read.csv('Z:/DatasetProcessor/Census/IntercensalEstimates/Interfaces/2021-04-05-17-29-yanhe8-04c6fdf/Intercensal_estimates.csv')
+pop <- pop[pop$Year>=2008 & pop$AgeGroup>=0,]
+pop['age.group'] <- 'under25'
+for (age in seq(25,75,10)) {
+  ub <- age+9
+  pop[pop$AgeGroup %in% c(age,age+5), 'age.group'] <- paste0(age,'to',ub)
+}
+pop[pop$AgeGroup==85, 'age.group'] <- 'over85'
+table(pop$age.group)
+save(pop, file = "pop.rda")
