@@ -1,0 +1,106 @@
+---
+title: "Medicare enrollment"
+author: 'Yan He'
+date: '05/14/2021'
+output:
+  # pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE) 
+library(tidyverse) 
+library(ggplot2)
+library(maps) 
+library(mapdata)
+library(gridExtra) # used for combining plots
+```
+
+## Start the visualization of the Medicare enrollment
+```{r}
+setwd("E:/Repositories/HealthcareSpending/MedicareEnrollment")
+load("by_time.rda")
+load("by_demo.rda")
+load("by_state.rda")
+load("pop.rda")
+```
+
+```{r}
+# Medicare enrollment by Medicare type
+df <- by.time[,c('year', 'org.enroll', 'ma.enroll')] %>%
+  pivot_longer(cols=c('org.enroll', 'ma.enroll'), 
+               names_to = 'var',
+               values_to = 'value') %>%
+  group_by(year) %>% 
+  mutate(total.enroll=round(sum(value)/1000000,1)) %>%
+  mutate(value = round(value/1000000,1)) %>%
+  mutate(pct = round(value/total.enroll*100,1),
+         pctlab = paste0(pct,'%'))
+make_plot <- function(df ,title, ylabel, legend_name, legend_label) {
+ df %>% 
+  ggplot(aes(x = year, y = value, fill = var)) +
+  geom_bar(stat = "identity") +
+  scale_x_continuous(breaks=seq(2008,2019,1)) +
+  geom_text(aes(label = value), size = 3, position = position_stack(vjust = 0.9)) + 
+  geom_text(aes(label = pctlab), size = 3, position = position_stack(vjust = 0.5)) +
+  theme_bw()+
+  labs(title= title, y=ylabel, x = "Year") +
+  scale_fill_manual(name = legend_name, 
+                    values=c("grey","tan"),labels = clegend_label) 
+}
+
+df %>% 
+  ggplot(aes(x = year, y = value, fill = var)) +
+  geom_bar(stat = "identity") +
+  scale_x_continuous(breaks=seq(2008,2019,1)) +
+  geom_text(aes(label = value), size = 3, position = position_stack(vjust = 0.9)) + 
+  geom_text(aes(label = pctlab), size = 3, position = position_stack(vjust = 0.5)) +
+  theme_bw()+
+  labs(title= "Medicare Enrollment over time",
+       y="Beneficiaries (million)", x = "Year",
+       colour = "Type") +
+  scale_fill_manual(name = "Medicare Type", 
+                    values=c("grey","tan"),labels = c("MA/Part C", "Original"))
+  # theme(axis.title.x=element_blank(),
+  #       axis.title.y=element_text(size=23))
+# strip.text = element_text(size = 20),
+#         axis.text.x = element_text(size=20),
+#         axis.text.y = element_text(size=20),
+#         legend.position = "none"
+```
+
+
+```{r}
+# Medicare enrollment by Drug plan status
+df <- by.time[,c('year', "stand.alone", "ma.rx")] %>%
+  pivot_longer(cols=c("stand.alone", "ma.rx"), 
+               names_to = 'var',
+               values_to = 'value') %>%
+  group_by(year) %>% 
+  mutate(PartD.enroll=round(sum(value)/1000000,1)) %>%
+  mutate(value = round(value/1000000,1)) %>%
+  mutate(pct = round(value/PartD.enroll*100,1),
+         pctlab = paste0(pct,'%'))
+  
+df %>% 
+  ggplot(aes(x = year, y = value, fill = var)) +
+  geom_bar(stat = "identity") +
+  scale_x_continuous(breaks=seq(2008,2019,1)) +
+  geom_text(aes(label = value), size = 3, position = position_stack(vjust = 0.9)) + 
+  geom_text(aes(label = pctlab), size = 3, position = position_stack(vjust = 0.5)) +
+  theme_bw()+
+  labs(title= "Part D Enrollment over time",
+       y="Beneficiaries (million)", x = "Year") +
+  scale_fill_manual(name = "Part D Type", 
+                    values=c("grey","tan"),labels = c("Stand-alone", "MA"))
+```
+
+```{r}
+by.time['partD.share'] <- by.time$partD.enroll/by.time$total.enroll
+by.time['standalone.share'] <- by.time$stand.alone/by.time$partD.enroll
+
+by.time['retiree.subsidy.share'] <- by.time$retiree.rx.subsidy/by.time$total.enroll
+by.time['no.pd.retiree.subsidy.share'] <- by.time$no.pd.rx.retiree.subsidy/by.time$total.enroll
+```
+
+
