@@ -238,7 +238,7 @@ save(by.state, file = "by_state.rda")
 
 # read the population data
 pop <- read.csv('Z:/DatasetProcessor/Census/IntercensalEstimates/Interfaces/2021-04-05-17-29-yanhe8-04c6fdf/Intercensal_estimates.csv')
-pop <- pop[pop$Year>=2008 & pop$AgeGroup>=0,]
+pop <- pop[pop$Year>=2008 & pop$AgeGroup>=0 & pop$RaceCensus<6,]
 pop['age.group'] <- 'under25'
 for (age in seq(25,75,10)) {
   ub <- age+9
