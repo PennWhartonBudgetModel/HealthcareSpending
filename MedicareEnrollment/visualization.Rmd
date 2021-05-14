@@ -14,6 +14,9 @@ library(ggplot2)
 library(maps) 
 library(mapdata)
 library(gridExtra) # used for combining plots
+library(openxlsx)
+library(readxl)
+
 ```
 
 ```{r echo=FALSE}
@@ -22,144 +25,19 @@ load("by_time.rda")
 load("by_demo.rda")
 load("by_state.rda")
 load("pop.rda")
-```
 
-### Medicare beneficiaries composition, by MA(Part C)/Traditional Medicare, Aged/Disabled, Agegroup, Prescription drug coverage status, Gender 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-# Medicare enrollment by Medicare type
-# df <- by.time[,c('year', 'org.enroll', 'ma.enroll')] %>%
-#   pivot_longer(cols=c('org.enroll', 'ma.enroll'), 
-#                names_to = 'var',
-#                values_to = 'value') %>%
-#   group_by(year) %>% 
-#   mutate(total.enroll=round(sum(value)/1000000,1)) %>%
-#   mutate(value = round(value/1000000,1)) %>%
-#   mutate(pct = round(value/total.enroll*100,1),
-#          pctlab = paste0(pct,'%'))
-
-# df %>% 
-#   ggplot(aes(x = year, y = value, fill = var)) +
-#   geom_bar(stat = "identity") +
-#   scale_x_continuous(breaks=seq(2008,2019,1)) +
-#   geom_text(aes(label = value), size = 3, position = position_stack(vjust = 0.9)) + 
-#   geom_text(aes(label = pctlab), size = 3, position = position_stack(vjust = 0.5)) +
-#   theme_bw()+
-#   labs(title= "Medicare Enrollment over time",
-#        y="Beneficiaries (million)", x = "Year") +
-#   scale_fill_manual(name = "Medicare Type", 
-#                     values=c("grey","tan"),labels = c("MA/Part C", "Original"))
-
-# get the share of MA with Part D among MA enrollees
-by.time['share.MAwithPD'] <- by.time$ma.rx/by.time$ma.enroll*100
-# by.time['share.AandB'] <- by.time$AandB.total/by.time$AorB.total *100
-# by.time['share.AandB.org'] <- by.time$AandB.total.org /by.time$AorB.total.org *100
-# by.time['share.AandB.ma'] <- by.time$AandB.total.MA/by.time$AorB.total.MA *100
-
-data_plot <- function(by.time, varlist) {
-  df <- by.time[,c('year', varlist)] %>%
-  pivot_longer(cols=varlist, 
-               names_to = 'var',
-               values_to = 'value') %>%
-  group_by(year) %>% 
-  mutate(total=round(sum(value)/1000000,1)) %>%
-  mutate(value = round(value/1000000,1)) %>%
-  mutate(pct = round(value/total*100,1),
-         pctlab = paste0(pct,'%'))
-  return(df)
-}
-
-bar_plot <- function(df ,title, ylabel, legend_name, lengend_color, legend_label) {
- df %>% 
-  ggplot(aes(x = year, y = value, fill = var)) +
-  geom_bar(stat = "identity") +
-  scale_x_continuous(breaks=seq(2008,2019,1)) +
-  geom_text(aes(label = value), size = 3, position = position_stack(vjust = 0.9)) + 
-  geom_text(aes(label = pctlab), size = 3, position = position_stack(vjust = 0.5)) +
-  theme_bw()+
-  labs(title= title, y=ylabel, x = "Year") +
-  scale_fill_manual(name = legend_name, 
-                    values=lengend_color,labels = legend_label) 
-}
-
-# by MA/original
-df <- data_plot(by.time, varlist=c('org.enroll', 'ma.enroll'))
-bar_plot(df,title="Medicare Enrollment by MA status", 
-          ylabel="Beneficiaries (million)", 
-          legend_name="Medicare Type", lengend_color=c("grey","tan"),
-          legend_label=c("MA/Part C", "Original"))
-
-# by Aged/Disabled
-df <- data_plot(by.time, varlist=c("AorB.aged","AorB.disabled"))
-bar_plot(df,title="Medicare Enrollment by Aged/Disabled status", 
-          ylabel="Beneficiaries (million)", 
-          legend_name="Cohort", lengend_color=c("grey","tan"),
-          legend_label=c("Aged", "Disabled"))
-
-# by more detailed age group
-agegrp.all <- c('count.under25','count.25to34', 'count.35to44','count.45to54',
+# prepare some list of variables that commonly used in multiple places
+agegrp.all <- c('count.under25','count.25to34', 'count.35to44','count.45to54', 
             'count.55to64', 'count.65to74', 'count.75to84', 'count.over85')
-varlist <- gsub("count.","",agegrp.all)
-df <- data_plot(by.time, varlist=agegrp.all)
-df$var <- gsub("count.","",df$var)
-df$var <- factor(df$var, levels = rev(varlist))
+agegrp.ma <- paste0(agegrp.all, '.MA')
+var_order <- gsub("count.","",agegrp.all)
 
-custom.col <- c("#FFDB6D", "#C4961A", "#CC79A7","#D16103", 
-                "#C3D7A4", "#52854C", "#4E84C4", "#293352")
-df %>%
-  ggplot(aes(x = year, y = value, fill = var)) +
-  geom_bar(stat = "identity") +
-  scale_x_continuous(breaks=seq(2008,2019,1)) +
-  theme_bw()+
-  labs(title= 'Medicare enrollment Age distribution', y='Beneficiaries (million)', x = "Year") +
-  scale_fill_manual(name = 'Age group', 
-                    values=custom.col,labels = rev(varlist)) 
-  
-# by Part D
-# df <- data_plot(by.time, varlist=c("partD.enroll", "retiree.rx.subsidy", "no.pd.rx.retiree.subsidy"))
-# df[df$var=='retiree.rx.subsidy', 'pctlab'] = ''
-# bar_plot(df,title="Prescription drug coverage Among Medicare beneficiaries", 
-#           ylabel="Beneficiaries (million)", 
-#           legend_name="Cohort", lengend_color=c("grey","tan", "cadetblue"),
-#           legend_label=c("No PartD or \nRetiree subsidy", "Part D", 
-#                          "Retiree Rx subsidy"))
-var_rx <- c("no.pd.rx.retiree.subsidy", "stand.alone", "ma.rx", "retiree.rx.subsidy")
-df <- data_plot(by.time, varlist=var_rx)
-df[df$var=='retiree.rx.subsidy', 'pctlab'] = ''
-df$var <- factor(df$var, levels = var_rx)
-bar_plot(df,title="Prescription drug coverage Among Medicare beneficiaries",
-          ylabel="Beneficiaries (million)",
-          legend_name="Cohort", lengend_color=c("grey","tan", "cadetblue", '#C3D7A4'),
-          legend_label=c("No PartD or \nRetiree subsidy", "PartD-standalone", "PartD-MA", "Retiree Rx subsidy"))
-
-# by gender
-df <- by.demo %>%
-  filter(group %in% c('male', 'female')) %>%
-  select(c(year, group, AorB.total))
-colnames(df) <- c('year', "var", "value")
-df <- df %>% 
-  group_by(year) %>%
-  mutate(total=round(sum(value)/1000000,1)) %>%
-  mutate(value = round(value/1000000,1)) %>%
-  mutate(pct = round(value/total*100,1),
-         pctlab = paste0(pct,'%'))
-bar_plot(df,title="Medicare enrollment By gender", 
-          ylabel="Beneficiaries (million)", 
-          legend_name="Cohort", lengend_color=c("grey","tan"),
-          legend_label=c("Female", "Male"))
-```
-
-## Medicare part D composition
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-df <- data_plot(by.time, varlist=c("stand.alone", "ma.rx"))
-bar_plot(df,title="Part D Enrollment composition", 
-          ylabel="Beneficiaries (million)", 
-          legend_name="Part D Type", lengend_color=c("grey","tan", "cadetblue"),
-          legend_label=c("From MA", "Stand-alone"))
-# df <- data_plot(by.time, varlist=c("stand.alone", "ma.rx"))
-
+# create excel workbook
+wb <- createWorkbook()
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
+# more data processing
 pop['sex'] <- 'male'
 pop[pop$Gender==1, 'sex'] <- 'female'
 bygender <- pop %>%
@@ -182,12 +60,209 @@ colnames(totpop) <- c('year', 'pop', 'group')
 pop.demo <- bygender %>%
   bind_rows(byage) %>%
   bind_rows(totpop)
+
+# prepare the data by demographic for age, gender distribution graphing
+df.demo <- by.demo %>% 
+  select(c(year,group,AorB.total,AorB.total.MA, partD.enroll,total.enroll, ma.rx)) %>%
+  left_join(pop.demo,by=c('year', 'group')) %>%
+  mutate(enrollrate.ma=AorB.total.MA/total.enroll*100,
+         enrollrate.pd=partD.enroll/total.enroll*100,
+         enrollrate.mcr = total.enroll/pop*100,
+         enrollrate.pd.ma=ma.rx/partD.enroll *100,
+         enrollrate.pdwithma=ma.rx/AorB.total.MA *100)
+df.demo[!is.na(df.demo$enrollrate.mcr) & df.demo$enrollrate.mcr>100, 'enrollrate.mcr'] <- 100
+# interestingly, the enrollment number is greater than the population
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# define some plotting functions
+# line plot
+line_plot <- function(df, var, keep_group, title, ylabel,legend_name, sheetname) {
+  
+  df.plot <- df[,c('year', 'group', var)] %>%
+    filter(group %in% keep_group)
+  colnames(df.plot) <- c('year', 'var', 'value')
+  if ('under25' %in% keep_group) {
+    df.plot$var <- factor(df.plot$var, levels = rev(var_order))
+  }
+  # save df.plot
+  addWorksheet(wb=wb, sheetName = sheetname)
+  writeData(wb, sheet = length(wb$worksheets), df.plot)
+  
+  df.plot %>%
+    ggplot(aes(x = year, y = value, group=var, color = var)) +
+    geom_line()+
+    scale_x_continuous(breaks=seq(2008,2019,1)) +
+    theme_bw()+
+    labs(title= title,y=ylabel, x = "Year", colour = legend_name) 
+}
+
+# function to prepare the data for bar graphing
+data_plot <- function(by.time, varlist) {
+  df <- by.time[,c('year', varlist)] %>%
+  pivot_longer(cols=varlist, 
+               names_to = 'var',
+               values_to = 'value') %>%
+  group_by(year) %>% 
+  mutate(total=round(sum(value)/1000000,1)) %>%
+  mutate(value = round(value/1000000,1)) %>%
+  mutate(pct = round(value/total*100,1),
+         pctlab = paste0(pct,'%'))
+  return(df)
+}
+
+# bar plot function
+bar_plot <- function(df ,title, ylabel, legend_name, lengend_color, legend_label) {
+ df %>% 
+  ggplot(aes(x = year, y = value, fill = var)) +
+  geom_bar(stat = "identity") +
+  scale_x_continuous(breaks=seq(2008,2019,1)) +
+  geom_text(aes(label = value), size = 3, position = position_stack(vjust = 0.9)) + 
+  geom_text(aes(label = pctlab), size = 3, position = position_stack(vjust = 0.5)) +
+  theme_bw()+
+  labs(title= title, y=ylabel, x = "Year") +
+  scale_fill_manual(name = legend_name, 
+                    values=lengend_color,labels = legend_label) 
+}
+
+```
+
+### Medicare enrollment rate by Demographics
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Medicare enrollment rate by demo
+line_plot(df.demo, var="enrollrate.mcr", 
+      keep_group=c('male', 'female', 'total'), 
+      title='Figure1: Medicare enrollment rate', 
+      ylabel='Percentage',legend_name='Gender',
+      sheetname = 'MCRrate.gender')
+
+line_plot(df.demo, var="enrollrate.mcr", 
+      keep_group=c('under25','25to34', '35to44','45to54','55to64'), 
+      title='Figure2: Medicare enrollment rate (disabled)', 
+      ylabel='Percentage', legend_name='Age group',
+      sheetname = 'MCRrate.disabled')
+line_plot(df.demo, var="enrollrate.mcr", 
+      keep_group=c('65to74', '75to84', 'over85'),
+      title='Figure3: Medicare enrollment rate (elderly)', 
+      ylabel='Percentage', legend_name='Age group',
+      sheetname = 'MCRrate.elderly')
+```
+
+### Medicare beneficiaries composition, by Age/Disabled, gender
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Medicare enrollment composition
+# by Aged/Disabled
+df <- data_plot(by.time, varlist=c("AorB.aged","AorB.disabled"))
+# save df
+addWorksheet(wb=wb, sheetName = 'MCR.aged.disabled')
+writeData(wb, sheet = length(wb$worksheets), df)
+
+bar_plot(df,title="Figure4: Medicare Enrollment by Aged/Disabled status", 
+          ylabel="Beneficiaries (million)", 
+          legend_name="Cohort", lengend_color=c("grey","tan"),
+          legend_label=c("Aged", "Disabled"))
+
+# by more detailed age group
+agegrp.all <- c('count.under25','count.25to34', 'count.35to44','count.45to54',
+            'count.55to64', 'count.65to74', 'count.75to84', 'count.over85')
+varlist <- gsub("count.","",agegrp.all)
+df <- data_plot(by.time, varlist=agegrp.all)
+df$var <- gsub("count.","",df$var)
+df$var <- factor(df$var, levels = rev(varlist))
+# save df
+addWorksheet(wb=wb, sheetName = 'MCR.age.detail')
+writeData(wb, sheet = length(wb$worksheets), df)
+
+custom.col <- c("#FFDB6D", "#C4961A", "#CC79A7","#D16103", 
+                "#C3D7A4", "#52854C", "#4E84C4", "#293352")
+df %>%
+  ggplot(aes(x = year, y = value, fill = var)) +
+  geom_bar(stat = "identity") +
+  scale_x_continuous(breaks=seq(2008,2019,1)) +
+  theme_bw()+
+  labs(title= 'Figure5: Medicare enrollment Age distribution', y='Beneficiaries (million)', x = "Year") +
+  scale_fill_manual(name = 'Age group', 
+                    values=custom.col,labels = rev(varlist)) 
+
+# by gender
+df <- by.demo %>%
+  filter(group %in% c('male', 'female')) %>%
+  select(c(year, group, AorB.total))
+colnames(df) <- c('year', "var", "value")
+df <- df %>% 
+  group_by(year) %>%
+  mutate(total=round(sum(value)/1000000,1)) %>%
+  mutate(value = round(value/1000000,1)) %>%
+  mutate(pct = round(value/total*100,1),
+         pctlab = paste0(pct,'%'))
+# save df
+addWorksheet(wb=wb, sheetName = 'MCR.gender')
+writeData(wb, sheet = length(wb$worksheets), df)
+
+bar_plot(df,title="Figure6: Medicare enrollment By gender", 
+          ylabel="Beneficiaries (million)", 
+          legend_name="Cohort", lengend_color=c("grey","tan"),
+          legend_label=c("Female", "Male"))
+```
+
+### Medicare beneficiaries composition, by MA(Part C)/Traditional Medicare, Prescription drug coverage status
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# get the share of MA with Part D among MA enrollees
+by.time['share.MAwithPD'] <- by.time$ma.rx/by.time$ma.enroll*100
+# by.time['share.AandB'] <- by.time$AandB.total/by.time$AorB.total *100
+# by.time['share.AandB.org'] <- by.time$AandB.total.org /by.time$AorB.total.org *100
+# by.time['share.AandB.ma'] <- by.time$AandB.total.MA/by.time$AorB.total.MA *100
+
+# by MA/original
+df <- data_plot(by.time, varlist=c('org.enroll', 'ma.enroll'))
+# save df
+addWorksheet(wb=wb, sheetName = 'MCR.MA.org')
+writeData(wb, sheet = length(wb$worksheets), df)
+
+bar_plot(df,title="Figure7: Medicare Enrollment by MA status", 
+          ylabel="Beneficiaries (million)", 
+          legend_name="Medicare Type", lengend_color=c("grey","tan"),
+          legend_label=c("MA/Part C", "Original"))
+
+# by Part D
+# df <- data_plot(by.time, varlist=c("partD.enroll", "retiree.rx.subsidy", "no.pd.rx.retiree.subsidy"))
+# df[df$var=='retiree.rx.subsidy', 'pctlab'] = ''
+# bar_plot(df,title="Prescription drug coverage Among Medicare beneficiaries", 
+#           ylabel="Beneficiaries (million)", 
+#           legend_name="Cohort", lengend_color=c("grey","tan", "cadetblue"),
+#           legend_label=c("No PartD or \nRetiree subsidy", "Part D", 
+#                          "Retiree Rx subsidy"))
+var_rx <- c("no.pd.rx.retiree.subsidy", "stand.alone", "ma.rx", "retiree.rx.subsidy")
+df <- data_plot(by.time, varlist=var_rx)
+df[df$var=='retiree.rx.subsidy', 'pctlab'] = ''
+df$var <- factor(df$var, levels = var_rx)
+# save df
+addWorksheet(wb=wb, sheetName = 'MCR.partD')
+writeData(wb, sheet = length(wb$worksheets), df)
+
+bar_plot(df,title="Figure8: Prescription drug coverage Among Medicare beneficiaries",
+          ylabel="Beneficiaries (million)",
+          legend_name="Cohort", lengend_color=c("grey","tan", "cadetblue", '#C3D7A4'),
+          legend_label=c("No PartD or \nRetiree subsidy", "PartD-standalone", "PartD-MA", "Retiree Rx subsidy"))
+```
+
+## Medicare part D composition
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+df <- data_plot(by.time, varlist=c("stand.alone", "ma.rx"))
+# save df
+addWorksheet(wb=wb, sheetName = 'PartD.MA')
+writeData(wb, sheet = length(wb$worksheets), df)
+
+bar_plot(df,title="Figure9: Part D Enrollment composition", 
+          ylabel="Beneficiaries (million)", 
+          legend_name="Part D Type", lengend_color=c("grey","tan", "cadetblue"),
+          legend_label=c("From MA", "Stand-alone"))
+# df <- data_plot(by.time, varlist=c("stand.alone", "ma.rx"))
+
 ```
 
 ### Among Medicare beneficiaries, the percentage enrolled in MA, part D by demographic
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-agegrp.all <- c('count.under25','count.25to34', 'count.35to44','count.45to54', 
-            'count.55to64', 'count.65to74', 'count.75to84', 'count.over85')
 # # make a plot of the Medicare share of each age
 # agegrp.share <- gsub("count.","share.",agegrp.all)
 # df <- by.time[,c('year', agegrp.share)] %>%
@@ -203,8 +278,6 @@ agegrp.all <- c('count.under25','count.25to34', 'count.35to44','count.45to54',
 #        y="Percentage", x = "Year", colour = 'Age group') 
 
 # # Medicare enrollment by Medicare type
-agegrp.ma <- paste0(agegrp.all, '.MA')
-
 df1 <- by.time[,c('year', agegrp.all)] %>%
   pivot_longer(cols=agegrp.all,
                names_to = 'var',
@@ -219,74 +292,52 @@ df <- df1 %>% full_join(df2, by = c("year", "var"))
 df['value'] <- round(df$value.MA/df$value.total*100,2)
 df$var <- gsub("count.","",df2$var)
 
-var_order <- gsub("count.","",agegrp.all)
 df$var <- factor(df$var, levels = rev(var_order))
+# save df
+addWorksheet(wb=wb, sheetName = 'MArate.age')
+writeData(wb, sheet = length(wb$worksheets), df)
 
 df %>%
   ggplot(aes(x = year, y = value, group=var, color = var)) +
   geom_line()+
   scale_x_continuous(breaks=seq(2008,2019,1)) +
   theme_bw()+
-  labs(title= "Part C (MA) enrollment rate among all Medicare (by age group)",
+  labs(title= "Figure10: Part C (MA) enrollment rate among all Medicare (by age group)",
        y="Percentage", x = "Year", colour = 'Age group') 
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-df <- by.demo %>% 
-  select(c(year,group,AorB.total,AorB.total.MA, partD.enroll,total.enroll, ma.rx)) %>%
-  left_join(pop.demo,by=c('year', 'group')) %>%
-  mutate(enrollrate.ma=AorB.total.MA/total.enroll*100,
-         enrollrate.pd=partD.enroll/total.enroll*100,
-         enrollrate.mcr = total.enroll/pop*100,
-         enrollrate.pd.ma=ma.rx/partD.enroll *100,
-         enrollrate.pdwithma=ma.rx/AorB.total.MA *100)
-df[!is.na(df$enrollrate.mcr) & df$enrollrate.mcr>100, 'enrollrate.mcr'] <- 100
-# interestingly, the enrollment number is greater than the population
-
-line_plot <- function(df, var, keep_group, title, ylabel,legend_name) {
-  
-  df.plot <- df[,c('year', 'group', var)] %>%
-    filter(group %in% keep_group)
-  colnames(df.plot) <- c('year', 'var', 'value')
-  if ('under25' %in% keep_group) {
-    df.plot$var <- factor(df.plot$var, levels = rev(var_order))
-  }
-
-  df.plot %>%
-    ggplot(aes(x = year, y = value, group=var, color = var)) +
-    geom_line()+
-    scale_x_continuous(breaks=seq(2008,2019,1)) +
-    theme_bw()+
-    labs(title= title,y=ylabel, x = "Year", colour = legend_name) 
-}
-
-line_plot(df, var="enrollrate.ma", 
+line_plot(df.demo, var="enrollrate.ma", 
       keep_group=c('male', 'female', 'total'), 
-      title='Part C (MA) enrollment rate among all Medicare (by gender)', 
-      ylabel='Percentage',legend_name='Gender')
+      title='Figure11: Part C (MA) enrollment rate among all Medicare (by gender)', 
+      ylabel='Percentage',legend_name='Gender',
+      sheetname = 'MArate.gender')
 
 # Part D enrollment rate among Medicare enrollees
-line_plot(df, var="enrollrate.pd", 
+line_plot(df.demo, var="enrollrate.pd", 
       keep_group=var_order, 
-      title='Part D enrollment rate among Medicare beneficiaries (by age group)', 
-      ylabel='Percentage', legend_name='Age group')
-line_plot(df, var="enrollrate.pd", 
+      title='Figure12: Part D enrollment rate among Medicare beneficiaries (by age group)', 
+      ylabel='Percentage', legend_name='Age group',
+      sheetname = 'PDrate.age')
+line_plot(df.demo, var="enrollrate.pd", 
       keep_group=c('male', 'female','total'), 
-      title='Part D enrollment rate among Medicare beneficiaries (by gender)', 
-      ylabel='Percentage', legend_name='Gender')
+      title='Figure13: Part D enrollment rate among Medicare beneficiaries (by gender)', 
+      ylabel='Percentage', legend_name='Gender',
+      sheetname = 'PDrate.gender')
 ```
 
-### Among Part D enrollees, percentage of people get Part D coverage from MA
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-# Part D enrollment rate among MA
-line_plot(df, var="enrollrate.pd.ma",
-      keep_group=var_order,
-      title='Part D from MA among Part D enrollees (by age group)',
-      ylabel='Percentage', legend_name='Age group')
-line_plot(df, var="enrollrate.pd.ma",
-      keep_group=c('male', 'female','total'),
-      title='Part D from MA among Part D enrollees (by gender)',
-      ylabel='Percentage', legend_name='Gender')
+### Among Part D enrollees, percentage of people get Part D coverage from MA
+# # Part D enrollment rate among MA
+# line_plot(df, var="enrollrate.pd.ma",
+#       keep_group=var_order,
+#       title='Part D from MA among Part D enrollees (by age group)',
+#       ylabel='Percentage', legend_name='Age group')
+# line_plot(df, var="enrollrate.pd.ma",
+#       keep_group=c('male', 'female','total'),
+#       title='Part D from MA among Part D enrollees (by gender)',
+#       ylabel='Percentage', legend_name='Gender')
 
 # # Part D enrollment rate among MA
 # line_plot(df, var="enrollrate.pdwithma",
@@ -297,25 +348,6 @@ line_plot(df, var="enrollrate.pd.ma",
 #       keep_group=c('male', 'female','total'),
 #       title='Part D enrollment rate among Medicare Advantage (by gender)',
 #       ylabel='Percentage', legend_name='Gender')
-```
-
-### Medicare enrollment rate by Demographics
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-# Medicare enrollment rate by demo
-line_plot(df, var="enrollrate.mcr", 
-      keep_group=c('male', 'female', 'total'), 
-      title='Medicare enrollment rate', 
-      ylabel='Percentage',legend_name='Gender')
-
-line_plot(df, var="enrollrate.mcr", 
-      keep_group=c('under25','25to34', '35to44','45to54','55to64'), 
-      title='Medicare enrollment rate (disabled)', 
-      ylabel='Percentage', legend_name='Age group')
-line_plot(df, var="enrollrate.mcr", 
-      keep_group=c('65to74', '75to84', 'over85'),
-      title='Medicare enrollment rate (elderly)', 
-      ylabel='Percentage', legend_name='Age group')
-
 ```
 
 ### Mapping State-level data (example)
@@ -353,6 +385,21 @@ ggplot(data=joined.states) +
   coord_quickmap() +
   theme_void() +
   ggtitle("2019 Medicare part D enrollment among Medicare enrollees")
-
 ```
 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# create more variables of interest in the state-level data and output the data
+
+# part D enrollment among Medicare Beneficiaries
+by.state["partD.share"] <- by.state$partD.enroll/by.state$total.enroll*100
+
+# stand-alone share among Part D
+by.state["standalone.partD.share"] <- by.state$stand.alone /by.state$total.enroll*100
+by.state["ma.partD.share"] <- by.state$ma.rx/by.state$total.enroll*100
+
+# save df
+addWorksheet(wb=wb, sheetName = 'state.level')
+writeData(wb, sheet = length(wb$worksheets), by.state)
+
+saveWorkbook(wb, "tables.xlsx", overwrite = TRUE)
+```
