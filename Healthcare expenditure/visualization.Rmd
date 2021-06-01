@@ -1,0 +1,191 @@
+---
+title: "Medicare enrollment"
+author: 'Yan He'
+date: '05/14/2021'
+output:
+  # pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE) 
+library(tidyverse) 
+library(ggplot2)
+library(maps) 
+library(mapdata)
+library(gridExtra) # used for combining plots
+library(openxlsx)
+library(readxl)
+```
+
+```{r echo=FALSE}
+setwd("E:/Repositories/HealthcareSpending/Healthcare expenditure")
+meps <- read.csv("meps.csv.gz")
+meps <- meps[meps$Year>=2008,]
+
+# create excel workbook
+# wb <- createWorkbook()
+```
+
+```{r echo=FALSE}
+# Do more data processing-mainly labeling of some demographic variables
+# Age-group, gender, race, education, region, Hispanic, Income level, family size, coverage type
+meps["AgeGroup"] <- 0
+meps[meps$Age>=18 & meps$Age<35, "AgeGroup"] <- 1
+meps[meps$Age>=35 & meps$Age<45, "AgeGroup"] <- 2
+meps[meps$Age>=45 & meps$Age<55, "AgeGroup"] <- 3
+meps[meps$Age>=55 & meps$Age<65, "AgeGroup"] <- 4
+meps[meps$Age>=65, "AgeGroup"] <- 5
+
+# Poverty level
+meps["PovertyLevel"] <- 0
+meps[meps$PercentOfFPL>=18 & meps$PercentOfFPL<35, "PovertyLevel"] <- 1
+meps[meps$PercentOfFPL>=35 & meps$PercentOfFPL<45, "PovertyLevel"] <- 2
+meps[meps$PercentOfFPL>=45 & meps$PercentOfFPL<55, "PovertyLevel"] <- 3
+meps[meps$PercentOfFPL>=55 & meps$PercentOfFPL<65, "PovertyLevel"] <- 4
+meps[meps$PercentOfFPL>=65, "PovertyLevel"] <- 5
+
+meps["AgeGroup"] <- factor(meps$AgeGroup, labels = c("Under18", "18-34","35-44", "45-54", "55-64", "65 and Over"))
+meps["Gender"] <- factor(meps$Gender, labels = c("Male", "Female"))
+meps["Race"] <- factor(meps$Race, labels = c("White Non-Hisp", "Black Non-Hisp", "Hispanic", "Asian Non-Hisp", "Other"))
+meps["Education"] <- factor(meps$Race, labels = c("Under High School", "High School/GED/Other degree", "Some College", "Bachelor", "Master or more"))
+meps["MaritalStatus"] <- factor(meps$MaritalStatus, labels = c("NIU(<16)", "Married", "Widowed", "Divorced", "Separated", "Never Married"))
+meps["EmploymentStatus"] <- factor(meps$EmploymentStatus, labels = c("NIU(<16)", "Unemployed/Unknown", "Employed"))
+meps["RegionMEPS"] <- factor(meps$RegionMEPS, labels = c("Northeast", "Midwest", "South", "West"))
+meps["PovertyStatus"] <- factor(meps$PovertyStatus, labels = c("<100%FPL", "100-124%FPL", "125-199%FPL", "200-399%FPL", ">=400%FPL"))
+meps["CoverageType"] <- factor(meps$CoverageType, labels = c("Uninsured", "Any Private", "Public only"))
+
+# create the OOP share variable
+meps['OOPShare'] <- meps$TotalOOPExp/meps$TotalHealthExp
+# there are some NAs from obs where both OOPexp and total exp are 0
+
+for (service in c("Outpatient", "ER", "Hospitalization", "Dental", "Homehealth",
+                  "Rx", "MedEquip")) {
+  meps[paste0(service,'OOPShare')] <- 
+    meps[paste0(service, 'OOPExp')]/meps[paste0(service, 'TotalExp')]
+}
+
+save(meps, file='meps.rda')
+```
+
+## 1) the enrollment rate of Medicare/Medicaid/PHI/Uninsured among different groups
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# NOTE: need to use weighted mean
+meps["group"] <- meps["RegionMEPS"]
+
+mcr <- meps %>%
+  group_by(Year, group) %>%
+  summarise(value = weighted.mean(CoveredByMedicare, FinalWeight,na.rm = T)*100) 
+mcr["instype"] <- "Medicare"
+
+mcd <- meps %>%
+  group_by(Year, group) %>%
+  summarise(value = weighted.mean(CoveredByMedicaid, FinalWeight,na.rm = T)*100) 
+mcd["instype"] <- "Medicaid"
+
+phi <- meps %>%
+  group_by(Year, group) %>%
+  summarise(value = weighted.mean(CoveredByPrivateInsurance, FinalWeight,na.rm = T)*100) 
+phi["instype"] <- "Private"
+
+unins <- meps %>%
+  group_by(Year, group) %>%
+  summarise(value = weighted.mean(NoInsuranceCoverage, FinalWeight,na.rm = T)*100) 
+unins["instype"] <- "No Insurance"
+
+df <- mcr %>% bind_rows(mcd) %>% bind_rows(phi) %>% bind_rows(unins)
+
+df %>%
+  ggplot(aes(x = Year, y = value, group=group, color = group)) +
+    geom_line()+
+    scale_x_continuous(breaks=seq(2008,2018,1)) +
+    facet_wrap(~instype, scales = "free_y") +
+    theme_bw()+
+    labs(title= 'Enrollment Rate', x = "Year", colour = 'Gender')
+
+# meps %>%
+#   filter(RegionMEPS!='NIU') %>%
+#   group_by(Year, RegionMEPS) %>%
+#   summarise(Medicare = weighted.mean(CoveredByMedicare, FinalWeight,na.rm = T)*100) %>%
+#   ggplot(aes(x = Year, y = Medicare, group=RegionMEPS, color = RegionMEPS)) +
+#     geom_line()+
+#     scale_x_continuous(breaks=seq(2008,2018,1)) +
+#     theme_bw()+
+#     labs(title= 'Enrollment Rate', x = "Year", colour = 'RegionMEPS')
+```
+
+## 2) The OOP share of different health services among different demographics (line plots)
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# should be among those who have positive medical expenses
+meps["group"] <- meps[,"RegionMEPS"]
+
+total <- meps %>%
+  filter(TotalHealthExp>0) %>%
+  group_by(Year, group) %>%
+  summarise(OOPShare = weighted.mean(OOPShare, FinalWeight,na.rm = T)*100) 
+total['service'] <- "Total"
+
+oop <- total
+
+for (service in c("Outpatient", "ER", "Hospitalization", "Dental", "Homehealth",
+                  "Rx", "MedEquip")) {
+  temp <- meps
+  temp['tot'] <- temp[,paste0(service, "TotalExp")]
+  temp['oop'] <- temp[,paste0(service, "OOPShare")]
+  
+  temp <- temp %>%
+    filter(tot>0) %>%
+    group_by(Year, group) %>%
+    summarise(OOPShare = weighted.mean(oop, FinalWeight,na.rm = T)*100)
+  temp['service'] <- service
+  oop <- oop %>% bind_rows(temp)
+}
+
+oop %>%
+  ggplot(aes(x = Year, y = OOPShare, group=group, color = group)) +
+    geom_line()+
+    facet_wrap(~service, scales = "free_y") +
+    scale_x_continuous(breaks=seq(2008,2018,1)) +
+    theme_bw()+
+    labs(title= 'OOP Share', x = "Year", colour = 'Gender')
+```
+## 2) The bar plots of population and spending
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# total expenditure
+# for (service in c("Outpatient", "ER", "Hospitalization", "Dental", "Homehealth",
+#                   "Rx", "MedEquip")) {
+#   temp <- meps
+#   temp['tot'] <- temp[,paste0(service, "TotalExp")]
+# 
+# first rename the variables
+
+df <- meps[meps$Year==2018,c('Year', "FinalWeight", "TotalHealthExp", "AgeGroup")]
+
+df <- df %>%
+  group_by(Year, AgeGroup) %>%
+  summarise(Population = sum(FinalWeight),
+            Spending = sum(FinalWeight*TotalHealthExp)) %>%
+  group_by(Year) %>%
+  mutate(TotalPop = sum(Population),
+         TotalExp = sum(Spending),
+         PopShare = Population/TotalPop*100,
+         ExpShare = Spending/TotalExp*100) %>%
+  select(Year, AgeGroup, PopShare, ExpShare) %>%
+  pivot_longer(cols=c("PopShare", "ExpShare"),  # reshape from wide to long
+               names_to = 'var',
+               values_to = 'value') 
+df$var <- factor(df$var, levels =c("PopShare", "ExpShare"))
+
+df %>%
+  filter(Year>=2013) %>%
+  ggplot(aes(x = var, y = value, fill = AgeGroup)) +
+  geom_bar(stat = "identity") +
+  scale_x_discrete(labels=c("PopShare" = "Pop", 
+                            "ExpShare" = "Exp")) +
+  theme_bw()+
+  geom_text(aes(label = paste0(round(value,1), '%')), size = 3, position = position_stack(vjust = 0.5)) +
+  facet_grid(~Year) +
+  labs(title= "Share of population and corresponding spending", y="Share", x = "") 
+#   scale_fill_manual(name = legend_name, 
+#                     values=lengend_color,labels = legend_label) 
+```
