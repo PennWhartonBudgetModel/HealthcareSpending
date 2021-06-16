@@ -20,8 +20,9 @@ library(readxl)
 
 ```{r echo=FALSE}
 setwd("E:/Repositories/HealthcareSpending/Healthcare expenditure")
-meps <- read.csv("meps.csv.gz")
-meps <- meps[meps$Year>=2008,]
+# meps <- read.csv("F:/Interfaces/meps_person.csv.gz")
+meps <- read.csv("F:/Interfaces/meps.csv.gz")
+meps <- meps[meps$Year>=2008 & meps$FinalWeight>0,]
 
 # create excel workbook
 # wb <- createWorkbook()
@@ -65,6 +66,7 @@ for (service in c("Outpatient", "ER", "Hospitalization", "Dental", "Homehealth",
     meps[paste0(service, 'OOPExp')]/meps[paste0(service, 'TotalExp')]
 }
 
+meps['TotalTotalExp'] <- meps$TotalHealthExp
 save(meps, file='meps.rda')
 ```
 
@@ -95,12 +97,14 @@ unins["instype"] <- "No Insurance"
 
 df <- mcr %>% bind_rows(mcd) %>% bind_rows(phi) %>% bind_rows(unins)
 
+df["instype"] <- factor(df$instype, levels = c("Medicare", "Medicaid", "Private", "No Insurance"))
+
 df %>%
   ggplot(aes(x = Year, y = value, group=group, color = group)) +
     geom_line()+
     scale_x_continuous(breaks=seq(2008,2018,1)) +
     facet_wrap(~instype, scales = "free_y") +
-    theme_bw()+
+    theme_bw() +
     labs(title= 'Enrollment Rate', x = "Year", colour = 'Gender')
 
 # meps %>%
@@ -141,6 +145,8 @@ for (service in c("Outpatient", "ER", "Hospitalization", "Dental", "Homehealth",
   oop <- oop %>% bind_rows(temp)
 }
 
+oop["service"] <- factor(oop$service, levels = c("Total","Hospitalization", "Outpatient", "ER", "Dental", "Homehealth", "Rx", "MedEquip"))
+
 oop %>%
   ggplot(aes(x = Year, y = OOPShare, group=group, color = group)) +
     geom_line()+
@@ -149,7 +155,7 @@ oop %>%
     theme_bw()+
     labs(title= 'OOP Share', x = "Year", colour = 'Gender')
 ```
-## 2) The bar plots of population and spending
+## 3) The bar plots of population and spending
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 # total expenditure
 # for (service in c("Outpatient", "ER", "Hospitalization", "Dental", "Homehealth",
@@ -157,35 +163,83 @@ oop %>%
 #   temp <- meps
 #   temp['tot'] <- temp[,paste0(service, "TotalExp")]
 # 
-# first rename the variables
+# first rename the variables--want to be able to do the visualization in a function
 
-df <- meps[meps$Year==2018,c('Year', "FinalWeight", "TotalHealthExp", "AgeGroup")]
+# test <- meps[, c("TotalHealthExp", "TotalMedicareExp", "TotalMedicaidExp", 
+#                  "TotalPHIandTricareExp", "TotalOtherExp", "TotalAllOtherExp", "TotalWorkerCompensationExp", "TotalVAExp", "TotalOOPExp", 'Year')]
 
-df <- df %>%
-  group_by(Year, AgeGroup) %>%
-  summarise(Population = sum(FinalWeight),
-            Spending = sum(FinalWeight*TotalHealthExp)) %>%
-  group_by(Year) %>%
-  mutate(TotalPop = sum(Population),
-         TotalExp = sum(Spending),
-         PopShare = Population/TotalPop*100,
-         ExpShare = Spending/TotalExp*100) %>%
-  select(Year, AgeGroup, PopShare, ExpShare) %>%
-  pivot_longer(cols=c("PopShare", "ExpShare"),  # reshape from wide to long
-               names_to = 'var',
-               values_to = 'value') 
-df$var <- factor(df$var, levels =c("PopShare", "ExpShare"))
+expvarlist <- c("TotalExp", "MedicareExp", "MedicaidExp", 
+                "PHIandTricareExp", "OtherExp", "OOPExp")
+varlist <- lapply("Total", paste0, expvarlist)[[1]]
+
+# for caretype in ['Total', 'Outpatient', 'ER', 'Hospitalization',
+# 		'Dental', 'Homehealth', 'Rx', 'MedEquip']:
+
+# grepl('Medicare', exp, fixed = TRUE)
+df_prep <- function(exp, grp, pay) {
+    
+  df <- meps[meps$Year==2018 & meps[exp]>0,c('Year', "FinalWeight", exp, grp)]
+  df['group'] <- df[, grp]
+  df['expenditure'] <- df[,exp]
+  
+  df <- df %>%
+    group_by(Year, group) %>%
+    summarise(Population = sum(FinalWeight),
+              Spending = sum(FinalWeight*expenditure)) %>%
+    group_by(Year) %>%
+    mutate(TotalPop = sum(Population),
+           TotalExp = sum(Spending),
+           PopShare = Population/TotalPop*100,
+           ExpShare = Spending/TotalExp*100) %>%
+    select(Year, group, PopShare, ExpShare) %>%
+    pivot_longer(cols=c("PopShare", "ExpShare"),  # reshape from wide to long
+                 names_to = 'var',
+                 values_to = 'value') 
+  df$var <- factor(df$var, levels =c("PopShare", "ExpShare"))
+  df['PaymentType'] <- pay
+  return(df)
+}
+
+tot <- df_prep(varlist[1], "AgeGroup", "Total")
+mcr <- df_prep(varlist[2], "AgeGroup", "Medicare")
+mcd <- df_prep(varlist[3], "AgeGroup", "Medicaid")
+phi <- df_prep(varlist[4], "AgeGroup", "PHI/Tricare")
+oth <- df_prep(varlist[5], "AgeGroup", "Other insurance")
+oop <- df_prep(varlist[6], "AgeGroup", "OOP")
+
+df <- tot %>% bind_rows(mcr) %>% bind_rows(mcd) %>% bind_rows(phi) %>%
+  bind_rows(oth) %>% bind_rows(oop)
+
+df["PaymentType"] <- factor(df$PaymentType, levels = c("Total", "Medicare", "Medicaid", "PHI/Tricare", "Other insurance", "OOP")) 
+
+# df <- meps[meps$Year==2018,c('Year', "FinalWeight", "TotalHealthExp", "AgeGroup")]
+# df['group'] <- df$AgeGroup
+# df['exp'] <- df$TotalHealthExp
+# 
+# df <- df %>%
+#   group_by(Year, group) %>%
+#   summarise(Population = sum(FinalWeight),
+#             Spending = sum(FinalWeight*exp)) %>%
+#   group_by(Year) %>%
+#   mutate(TotalPop = sum(Population),
+#          TotalExp = sum(Spending),
+#          PopShare = Population/TotalPop*100,
+#          ExpShare = Spending/TotalExp*100) %>%
+#   select(Year, group, PopShare, ExpShare) %>%
+#   pivot_longer(cols=c("PopShare", "ExpShare"),  # reshape from wide to long
+#                names_to = 'var',
+#                values_to = 'value') 
+# df$var <- factor(df$var, levels =c("PopShare", "ExpShare"))
 
 df %>%
-  filter(Year>=2013) %>%
-  ggplot(aes(x = var, y = value, fill = AgeGroup)) +
+  ggplot(aes(x = var, y = value, fill = group)) +
   geom_bar(stat = "identity") +
   scale_x_discrete(labels=c("PopShare" = "Pop", 
                             "ExpShare" = "Exp")) +
   theme_bw()+
-  geom_text(aes(label = paste0(round(value,1), '%')), size = 3, position = position_stack(vjust = 0.5)) +
-  facet_grid(~Year) +
+  theme(axis.text.x = element_text(angle = 45)) +
+  geom_text(aes(label = paste0(round(value,1), '%')), size = 2, position = position_stack(vjust = 0.5)) +
+  facet_grid(~PaymentType) +
   labs(title= "Share of population and corresponding spending", y="Share", x = "") 
-#   scale_fill_manual(name = legend_name, 
-#                     values=lengend_color,labels = legend_label) 
+
 ```
