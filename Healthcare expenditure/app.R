@@ -10,7 +10,7 @@ library(rgdal)
 library(stargazer)
 # install.packages('rsconnect')
 
-setwd("E:/Repositories/HealthcareSpending/Healthcare expenditure")
+# setwd("E:/Repositories/HealthcareSpending/Healthcare expenditure")
 # NOTE: this setwd() needs to be removed otherwise the deployment of the shinyapp will fail
 
 load('meps.rda')
@@ -79,20 +79,18 @@ server <- function(input, output) {
     
     meps["group"] <- meps[input$demo2]
     
-    total <- meps %>%
+    oop <- meps %>%
       filter(TotalHealthExp>0) %>%
       group_by(Year, group) %>%
       summarise(OOPShare = weighted.mean(OOPShare, FinalWeight,na.rm = T)*100) 
-    total['service'] <- "Total"
-    oop <- total
+    oop['service'] <- "Total"
     
     for (service in c("Outpatient", "ER", "Hospitalization", "Dental", "Homehealth",
                       "Rx", "MedEquip")) {
-      temp <- meps
-      temp['tot'] <- temp[,paste0(service, "TotalExp")]
-      temp['oop'] <- temp[,paste0(service, "OOPShare")]
+      meps['tot'] <- meps[,paste0(service, "TotalExp")]
+      meps['oop'] <- meps[,paste0(service, "OOPShare")]
       
-      temp <- temp %>%
+      temp <- meps %>%
         filter(tot>0) %>%
         group_by(Year, group) %>%
         summarise(OOPShare = weighted.mean(oop, FinalWeight,na.rm = T)*100)
