@@ -5,15 +5,15 @@ library(shiny)
 library(shinythemes)
 library(tidyverse)
 library(ggplot2)
+library(leaflet)
+library(rgdal)
+library(stargazer)
 # install.packages('rsconnect')
 
 # setwd("E:/Repositories/HealthcareSpending/Healthcare expenditure")
 # NOTE: this setwd() needs to be removed otherwise the deployment of the shinyapp will fail
 
 load('meps.rda')
-load('df1.rda')
-load('df2.rda')
-load('df3.rda')
 # NOTE: need to use weighted mean
 
 # This begins the app
@@ -27,8 +27,33 @@ server <- function(input, output) {
   #-----------------------------------------------------------------------
   output$plot1 <- renderPlot({
     
-    df <- df1 %>%
-      filter(Demo == input$demo1 & byvar %in% input$demolevels1)
+    meps["byvar"] <- meps[input$demo1]#
+
+    mcr <- meps %>%
+      group_by(Year, byvar) %>%
+      summarise(value = weighted.mean(CoveredByMedicare, FinalWeight,na.rm = T)*100)
+    mcr["instype"] <- "Medicare"
+
+    mcd <- meps %>%
+      group_by(Year, byvar) %>%
+      summarise(value = weighted.mean(CoveredByMedicaid, FinalWeight,na.rm = T)*100)
+    mcd["instype"] <- "Medicaid"
+
+    phi <- meps %>%
+      group_by(Year, byvar) %>%
+      summarise(value = weighted.mean(CoveredByPrivateInsurance, FinalWeight,na.rm = T)*100)
+    phi["instype"] <- "Private"
+
+    unins <- meps %>%
+      group_by(Year, byvar) %>%
+      summarise(value = weighted.mean(NoInsuranceCoverage, FinalWeight,na.rm = T)*100)
+    unins["instype"] <- "No Insurance"
+
+    df <- mcr %>% bind_rows(mcd) %>% bind_rows(phi) %>% bind_rows(unins) %>%
+      filter(byvar %in% input$demolevels1)
+    
+    df["instype"] <- factor(df$instype, levels = c("Medicare", "Medicaid", "Private", 
+                                                   "No Insurance"))
     
     # define the title based on different 
     ggplot(df) +
@@ -52,8 +77,32 @@ server <- function(input, output) {
   #-------------------------  
   output$plot2 <- renderPlot({
     
-    oop <- df2 %>%
-      filter(Demo == input$demo2 & group %in% input$demolevels2)
+    meps["group"] <- meps[input$demo2]
+    
+    oop <- meps %>%
+      filter(TotalHealthExp>0) %>%
+      group_by(Year, group) %>%
+      summarise(OOPShare = weighted.mean(OOPShare, FinalWeight,na.rm = T)*100) 
+    oop['service'] <- "Total"
+    
+    for (service in c("Outpatient", "ER", "Hospitalization", "Dental", "Homehealth",
+                      "Rx", "MedEquip")) {
+      meps['tot'] <- meps[,paste0(service, "TotalExp")]
+      meps['oop'] <- meps[,paste0(service, "OOPShare")]
+      
+      temp <- meps %>%
+        filter(tot>0) %>%
+        group_by(Year, group) %>%
+        summarise(OOPShare = weighted.mean(oop, FinalWeight,na.rm = T)*100)
+      temp['service'] <- service
+      oop <- oop %>% bind_rows(temp)
+    }
+    
+    oop["service"] <- factor(oop$service,levels = c("Total","Hospitalization", "Outpatient", 
+                                                    "ER", "Dental", "Homehealth", "Rx", 
+                                                    "MedEquip"))
+    oop <- oop %>%
+      filter(group %in% input$demolevels2)
     
     ggplot(oop) +
       geom_line(aes(x = Year, y = OOPShare, group=group, color = group)) +
@@ -74,9 +123,49 @@ server <- function(input, output) {
   #-------------------------  
   output$plot3 <- renderPlot({
     
-    df <- df3 %>%
-      filter(Demo == input$demo3 & Year==input$year3 &
-               service == input$service3 & group %in% input$demolevels3)
+    service <- input$service3
+    
+    expvarlist <- c("TotalExp", "MedicareExp", "MedicaidExp", 
+                    "PHIandTricareExp", "OtherExp", "OOPExp")
+    varlist <- lapply(service, paste0, expvarlist)[[1]]
+    
+    df_prep <- function(exp, grp, pay) {
+      
+      df <- meps[meps$Year==input$year3 & meps[exp]>0,c('Year', "FinalWeight", exp, grp)]
+      df['group'] <- df[, grp]
+      df['expenditure'] <- df[,exp]
+      
+      df <- df %>%
+        group_by(Year, group) %>%
+        summarise(Population = sum(FinalWeight),
+                  Spending = sum(FinalWeight*expenditure)) %>%
+        group_by(Year) %>%
+        mutate(TotalPop = sum(Population),
+               TotalExp = sum(Spending),
+               PopShare = Population/TotalPop*100,
+               ExpShare = Spending/TotalExp*100) %>%
+        select(Year, group, PopShare, ExpShare) %>%
+        pivot_longer(cols=c("PopShare", "ExpShare"),  # reshape from wide to long
+                     names_to = 'var',
+                     values_to = 'value') 
+      df$var <- factor(df$var, levels =c("PopShare", "ExpShare"))
+      df['PaymentType'] <- pay
+      return(df)
+    }
+    
+    tot <- df_prep(varlist[1], input$demo3, "Total")
+    mcr <- df_prep(varlist[2], input$demo3, "Medicare")
+    mcd <- df_prep(varlist[3], input$demo3, "Medicaid")
+    phi <- df_prep(varlist[4], input$demo3, "PHI/Tricare")
+    oth <- df_prep(varlist[5], input$demo3, "Other insurance")
+    oop <- df_prep(varlist[6], input$demo3, "OOP")
+    
+    df <- tot %>% bind_rows(mcr) %>% bind_rows(mcd) %>% bind_rows(phi) %>%
+      bind_rows(oth) %>% bind_rows(oop)
+    
+    df["PaymentType"] <- factor(df$PaymentType, levels = c("Total", "Medicare", "Medicaid", "PHI/Tricare", "Other insurance", "OOP")) 
+    df <- df %>%
+      filter(group %in% input$demolevels3)
     
     # plot
     df %>%
@@ -231,7 +320,7 @@ ui <- shinyUI(fluidPage(
                                              selected = (2018)),
                                  selectInput("service3",
                                              "Health service:",
-                                             c('All' = 'All',
+                                             c('Total' = 'Total',
                                                'Hospitalization' = 'Hospitalization', 
                                                'Outpatient' = 'Outpatient', 
                                                'ER' = 'ER',
@@ -249,6 +338,7 @@ ui <- shinyUI(fluidPage(
                                                'Education' = 'Education', 
                                                'Employment Status' = 'EmploymentStatus',
                                                'Poverty Status' = 'PovertyStatus',
+                                               'Insurance Type' = 'CoverageType',
                                                'Region' = 'RegionMEPS'), 
                                              selected = ('Age Group' = 'AgeGroup')),
                                  uiOutput("checkbox3")
