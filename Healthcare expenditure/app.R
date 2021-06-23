@@ -62,44 +62,15 @@ server <- function(input, output) {
       scale_x_continuous(breaks=seq(2008,2018,1)) +
       facet_wrap(~instype, scales = "free_y") +
       theme_bw()+
-      labs(title= 'Medicare/Medicaid/PHI coverage Rate and Uninsured Rate', 
+      labs(title= 'Medicare/Medicaid/PHI coverage Rate and Uninsurance Rate', 
            x = "Year", y = "Percent", colour = input$demo1) # 
-    # ggplot(data = df) +
-    #   geom_point(aes(value, yinterest, color = School_level)) +
-    #   scale_color_manual(values = c("red", "blue")) +
-    #   facet_wrap(~var, scales = "free_x") + # have different x-axis
-    #   theme_bw()+
-    #   theme(axis.title.x=element_blank(), # remove X label
-    #         axis.title.y=element_text(size=23),
-    #         strip.text = element_text(size = 20), # Facet Panel label size
-    #         # change x tick value size
-    #         axis.text.x = element_text(size=20),
-    #         axis.text.y = element_text(size=20),
-    #         legend.position = "none") +
-    #   labs(y = input$yvar)
   })
   output$checkbox1 <- renderUI({
     choice <-  levels(meps[,input$demo1])
-    checkboxGroupInput("demolevels1", paste0("Select ", input$demo1), 
+    checkboxGroupInput("demolevels1", paste0("Select groups"), 
                        choices = choice, selected = choice)
     
-  }) 
-  # output$text <- renderText({
-  #   paste0("<f><font size = 4>",
-  #          "<strong>Low Family Income: </strong>", 
-  #          "Percentage of student body that is from low income family",
-  #          "<br><strong>Drugs/Morals/Weapons: </strong>", 
-  #          "Drug/Morals/Weapons infractions per 100 students",
-  #          "<br><strong>Assaults/Thefts: </strong>",  
-  #          "Assaults/Thefts per 100 students",
-  #          "<br><strong>Teacher Attendance: </strong>", 
-  #          "Average percentage of teacher attendance",
-  #          "<br><strong>Special Education: </strong>", 
-  #          "Percentage of student body receiving special education",
-  #          "<br><strong>Gifted Education: </strong>", 
-  #          "Percentage of student body receiving gifted education"
-  #   )
-  # })
+  })
 
   #-------------------------
   # Second Graph
@@ -145,7 +116,7 @@ server <- function(input, output) {
   })
   output$checkbox2 <- renderUI({
     choice <-  levels(meps[,input$demo2])
-    checkboxGroupInput("demolevels2", paste0("Select ", input$demo2), 
+    checkboxGroupInput("demolevels2", paste0("Select groups"), 
                        choices = choice, selected = choice)
   }) 
 
@@ -213,8 +184,15 @@ server <- function(input, output) {
   })
   output$checkbox3 <- renderUI({
     choice <-  levels(meps[,input$demo3])
-    checkboxGroupInput("demolevels3", paste0("Select ", input$demo3), 
+    checkboxGroupInput("demolevels3", paste0("Select groups"), 
                        choices = choice, selected = choice)
+  })
+  
+  output$text <- renderText({
+    paste0("<f><font size = 4>",
+           "<strong>Notes: </strong>",
+           "Under each payment source, the population universe includes only people who have positive payment paid by that source"
+           )
   })
       
 }
@@ -225,7 +203,7 @@ ui <- shinyUI(fluidPage(
   theme = shinytheme("flatly"),
   # This applies preset aesthetic decisions to the entire app
   navbarPage(
-    "Health Insurance Health Expenditure App",
+    "Healthcare Facts App",
     # navbarPage lets us set up a navigation bar to toggle between tabPanels
     
     #-------------------------
@@ -236,29 +214,32 @@ ui <- shinyUI(fluidPage(
                tags$style("h2 {color: #04B4AE; }
                h1 {color: #04B4AE}; }")), # this is setting the color palette for our tab headers 1 and 2
              headerPanel("About the App"), # I haven't created a title for this page, try adding one!
-             br(), #a break creates a space
+             h4("This App visualizes health insurance coverage and the health expenditures patterns. With the visualization,
+                we can compare health insurance coverage and cost by different groups of people. We can look into more details of 
+                the cost paid by different payment sources and for different service types."),
+             # br(), #a break creates a space
              h2("How to Use This App"), # the number following h corresponds to size
              h4(tags$ul(
-               tags$li("Mapping School Characteristics: Display the differences in school characteristics between different areas"), #bullet point
-               tags$li("Explore Philly School Data: Explore the correlation between school outcomes and different characteristics"), #bullet point
-               tags$li("Analyzing School Outcomes: Build a regression model and predict the Student Attendance rate, withdrawals and suspension") #bullet point
+               tags$li("Health Insurance: Display the enrollment rate of different insurance and the uninsured rate by different characteristics"), #bullet point
+               tags$li("Out-of-pocket Share: Present the out-of-pocket share for different health services by different characteristics"), #bullet point
+               tags$li("Health Expenditure Distribution: Visualize the distribution by different characteristics of population as well as the corresponding spending for certain health service under different payment sources") #bullet point
              )),
-             h4("To begin, select \"Mapping School Characteristics\" on the navigation bar. You will be asked to choose 
-                the school level and variable of interest, the map will display the average of the variable you are interested
-                in by zip codes, based on the data of the school level you choose."),
-             h4("The second tab \"Explore Philly School Data\" on the navigation bar will allow you to choose the school 
-             outcomes and different school characteristic measurements, once you set your selection, the main panel will 
-             present the correlation plots of the school outcome and the selected school characteristics. Each plot shows
-             the data for both Elementary school and Middle School/above."),
-             h4("In the third tab \"Analyzing School Outcomes\", users can select a series of independent variables from the sidebar on the 
-             right to build the regression models. There are 3 OLS models where the dependent variables are Student Attendance
-             rate, student withdrawals and unique suspended students per year. The table displays the regression results 
-             for 3 models simultaneously."),
-             
+             h4("To begin, select \"Health Insurance\" on the navigation bar. You will be asked to choose 
+                the demographic or social characteristics and the corresponding groups that you are interested in, the plots will display the enrollment rate of 
+                Medicare, Medicaid and Private Health Insurance, as well as the uninsurance rate over time."),
+             h4("The second tab \"Out-of-pocket Share\" on the navigation bar will again allow you to choose the demographic or social characteristics
+             and the corresponding groups, once you set your selection, the main panel will 
+             present the out-of-pocket (OOP) share paid for different health services by the groups of people that you are interested in."),
+             h4("In the third tab \"Health Expenditure Distribution\", other than selection of the characteristics and the corresponding groups, users can also
+             select the year and health service type. The plots display the distribution of population by different characteristic groups, and the share of health spending 
+                associated with each group. The parallel distributions are plotted for different payments sources simultaneously. Note that, for each payment source, the population 
+                universe is the people who have positive payment made by that source."),
              h2("The Data"),
-             h4("This app uses data from the Philly school data. The data includes all different school characteristics
-                such as student race composition, school address. The data also includes some school outcome measurements
-                such as student attendance rate, withdrawals and suspension numbers.")),
+             h4("This app uses MEPS data. The data includes all different person-level characteristics, such as
+                age, gender, race, marital status, education, employment status, poverty status and region. The data also includes genderal health insurance coverage information
+                as well as the expenditures of different health services that paid by different payment sources. Health services include: Hospital inpatient, 
+                Outpatient (including office-based medical providers), Emergency Room (ER), Dental, Prescription Drugs (Rx), Homehealth (either Agency or non-Agency), 
+                Vision and other medical equipment. Payment source include Medicare, Medicaid, Private Health Insurance (including Tricare), Other Insurance, and Out-of-pocket (OOP)")),
     
     #-------------------------
     # Insurance Tab
@@ -266,13 +247,13 @@ ui <- shinyUI(fluidPage(
     tabPanel(
       # First tab
       "Health Insurance",
-      headerPanel("Plotting Insurance Coverage Trend"),
+      headerPanel("Plotting trend of insurance coverage"),
       # Side bar layout
       sidebarLayout(position = "left",
         # Side panel
         sidebarPanel(width = 3,
                      selectInput("demo1",
-                                 "Demographics:",
+                                 "Characteristics:",
                                  c('Age Group' = 'AgeGroup', 
                                    'Gender' = 'Gender', 
                                    'Race' = 'Race',
@@ -282,14 +263,13 @@ ui <- shinyUI(fluidPage(
                                    'Poverty Status' = 'PovertyStatus', 
                                    'Region' = 'RegionMEPS'), 
                                  selected = ('Age Group' = 'AgeGroup')),
-                     uiOutput("checkbox1"),
-                     helpText("Red dots are Elementary school, Blue dots are Middle school or above")
+                     uiOutput("checkbox1")
+                     # helpText("")
                      ),
         # Main panel
           mainPanel(
-            # Create the table.
+            # Create the plot.
             plotOutput("plot1")
-            # htmlOutput('text')
       ))
     ), # 1st Graph Tab
     
@@ -299,13 +279,13 @@ ui <- shinyUI(fluidPage(
     tabPanel(
       # Second tab
       "Out-of-pocket Share",
-      headerPanel("Plotting OOP share trend"),
+      headerPanel("Plotting trend of OOP share"),
       # Side bar layout
       sidebarLayout(position = "left",
                     # Side panel
                     sidebarPanel(width = 3,
                                  selectInput("demo2",
-                                             "Demographics:",
+                                             "Characteristics:",
                                              c('Age Group' = 'AgeGroup', 
                                                'Gender' = 'Gender', 
                                                'Race' = 'Race',
@@ -316,14 +296,13 @@ ui <- shinyUI(fluidPage(
                                                'Insurance Type' = 'CoverageType',
                                                'Region' = 'RegionMEPS'), 
                                              selected = ('Age Group' = 'AgeGroup')),
-                                 uiOutput("checkbox2"),
-                                 helpText("Red dots are Elementary school, Blue dots are Middle school or above")
+                                 uiOutput("checkbox2")
+                                 # helpText("Red dots are Elementary school, Blue dots are Middle school or above")
                     ),
                     # Main panel
                     mainPanel(
-                      # Create the table.
+                      # Create the plot.
                       plotOutput("plot2")
-                      # htmlOutput('text')
                     ))
     ), # 2nd Graph Tab
     #-------------------------
@@ -353,7 +332,7 @@ ui <- shinyUI(fluidPage(
                                                'Vision & Medical equipment' = 'MedEquip'), 
                                              selected = ('Total' = 'Total')),
                                  selectInput("demo3",
-                                             "Demographics:",
+                                             "Characteristics:",
                                              c('Age Group' = 'AgeGroup', 
                                                'Gender' = 'Gender', 
                                                'Race' = 'Race',
@@ -364,14 +343,14 @@ ui <- shinyUI(fluidPage(
                                                'Insurance Type' = 'CoverageType',
                                                'Region' = 'RegionMEPS'), 
                                              selected = ('Age Group' = 'AgeGroup')),
-                                 uiOutput("checkbox3"),
-                                 helpText("Red dots are Elementary school, Blue dots are Middle school or above")
+                                 uiOutput("checkbox3")
+                                 # helpText("Red dots are Elementary school, Blue dots are Middle school or above")
                     ),
                     # Main panel
                     mainPanel(
-                      # Create the table.
-                      plotOutput("plot3")
-                      # htmlOutput('text')
+                      # Create the plot.
+                      plotOutput("plot3"),
+                      htmlOutput('text')
                     ))
     )# 3rd Graph Tab
   )
