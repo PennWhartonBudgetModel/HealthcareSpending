@@ -19,18 +19,10 @@ meps[meps$Age>=45 & meps$Age<55, "AgeGroup"] <- 3
 meps[meps$Age>=55 & meps$Age<65, "AgeGroup"] <- 4
 meps[meps$Age>=65, "AgeGroup"] <- 5
 
-# Poverty level
-meps["PovertyLevel"] <- 0
-meps[meps$PercentOfFPL>=18 & meps$PercentOfFPL<35, "PovertyLevel"] <- 1
-meps[meps$PercentOfFPL>=35 & meps$PercentOfFPL<45, "PovertyLevel"] <- 2
-meps[meps$PercentOfFPL>=45 & meps$PercentOfFPL<55, "PovertyLevel"] <- 3
-meps[meps$PercentOfFPL>=55 & meps$PercentOfFPL<65, "PovertyLevel"] <- 4
-meps[meps$PercentOfFPL>=65, "PovertyLevel"] <- 5
-
 meps["AgeGroup"] <- factor(meps$AgeGroup, labels = c("Under18", "18-34","35-44", "45-54", "55-64", "65 and Over"))
 meps["Gender"] <- factor(meps$Gender, labels = c("Male", "Female"))
 meps["Race"] <- factor(meps$Race, labels = c("White Non-Hisp", "Black Non-Hisp", "Hispanic", "Asian Non-Hisp", "Other"))
-meps["Education"] <- factor(meps$Race, labels = c("Under High School", "High School/GED/Other degree", "Some College", "Bachelor", "Master or more"))
+meps["Education"] <- factor(meps$Education, labels = c("Below High School", "High School/GED/Other degree", "Some College", "Bachelor", "Master or more"))
 meps["MaritalStatus"] <- factor(meps$MaritalStatus, labels = c("NIU(<16)", "Married", "Widowed", "Divorced", "Separated", "Never Married"))
 meps["EmploymentStatus"] <- factor(meps$EmploymentStatus, labels = c("NIU(<16)", "Unemployed/Unknown", "Employed"))
 meps["RegionMEPS"] <- factor(meps$RegionMEPS, labels = c("Northeast", "Midwest", "South", "West"))
